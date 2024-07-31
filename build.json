@@ -1,0 +1,25 @@
+{ 
+  "name" : "paradox-xml",
+  "paradox-libraries" :
+  [
+    {
+      "name" : "paradox-platform",
+      "config" : { "version" : "main" }
+    }
+  ],
+
+  "build" :
+  [
+    {
+      "name" : "paradox-xml",
+      "type" : "library",
+      "sources" : [{ "repo" : "paradox-xml", "library" : "paradox-xml" , "directory" : "paradox-xml" }],
+      "includes" :
+      [
+        { "repo" : "paradox-xml" , "library" : "paradox-xml" },
+        { "repo" : "paradox-platform", "library" : "paradox-platform" }
+      ],
+      "libraries" : [ { "name" : "paradox-platform" } ]
+    }
+  ]
+}
