@@ -1,0 +1,1 @@
+#include <paradox-xml/xml1_document.h>
