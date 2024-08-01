@@ -1,3 +1,4 @@
+#ifdef IGNORE_THIS_FILE
 #include <paradox-xml/parser.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,17 +10,21 @@ paradox_xml1_errno_t paradox_parse_xml1_prolog(paradox_str_t xml_string, paradox
 paradox_xml1_errno_t paradox_parse_xml1_xml_decl(paradox_str_t xml_string, paradox_uint64_t* index);
 paradox_xml1_errno_t paradox_parse_xml1_version_info(paradox_str_t xml_string, paradox_uint64_t* index);
 paradox_xml1_errno_t paradox_parse_xml1_eq(paradox_str_t xml_string, paradox_uint64_t* index);
+
+
+paradox_xml1_errno_t paradox_parse_xml1_misc(paradox_str_t xml_string, paradox_uint64_t* index);
+
+//
+
 paradox_xml1_errno_t paradox_parse_xml1_encoding_decl(paradox_str_t xml_string, paradox_uint64_t* index);
 paradox_xml1_errno_t paradox_parse_xml1_sd_decl(paradox_str_t xml_string, paradox_uint64_t* index);
 
-paradox_xml1_errno_t paradox_parse_xml1_misc(paradox_str_t xml_string, paradox_uint64_t* index);
 paradox_xml1_errno_t paradox_parse_xml1_comment(paradox_str_t xml_string, paradox_uint64_t* index);
 paradox_xml1_errno_t paradox_parse_xml1_pi(paradox_str_t xml_string, paradox_uint64_t* index);
 paradox_xml1_errno_t paradox_parse_xml1_space(paradox_str_t xml_string, paradox_uint64_t* index);
 
 paradox_xml1_errno_t paradox_parse_xml1_doctype_decl(paradox_str_t xml_string, paradox_uint64_t* index);
 
-//
 
 
 paradox_xml1_errno_t paradox_parse_xml1_element(paradox_str_t xml_string, paradox_uint64_t* index, paradox_xml1_element* element);
@@ -49,7 +54,7 @@ paradox_bool8_t paradox_is_xml1_name_char(paradox_str_t xml_string, paradox_uint
 paradox_bool8_t paradox_is_xml1_char(paradox_str_t xml_string, paradox_uint64_t index);
 paradox_bool8_t paradox_is_xml1_restricted_char(paradox_str_t xml_string, paradox_uint64_t index);
 
-PARADOX_XML_API paradox_xml1_errno_t paradox_parse_xml1(paradox_str_t xml_string, paradox_xml1_element* element)
+PARADOX_XML_API paradox_xml1_errno_t paradox_parse_xml1_document(paradox_str_t xml_string, paradox_xml1_element* element)
 {   // document ::= ( prolog element Misc* )
     paradox_xml1_errno_t result;
     if(xml_string == NULL)
@@ -83,10 +88,10 @@ PARADOX_XML_API paradox_xml1_errno_t paradox_parse_xml1(paradox_str_t xml_string
     return result;
 }
 
-// [22] Prolog Section Implementations
+// Prolog Section Implementations
 
 paradox_xml1_errno_t paradox_parse_xml1_prolog(paradox_str_t xml_string, paradox_uint64_t* index)
-{   //	prolog ::= XMLDecl Misc* (doctypedecl Misc*)?
+{   // [22] prolog ::= XMLDecl Misc* (doctypedecl Misc*)?
     paradox_uint64_t base_index = *index;
     paradox_xml1_errno_t result;
     if(xml_string == NULL)
@@ -368,3 +373,4 @@ paradox_bool8_t paradox_is_xml1_restricted_char(paradox_str_t xml_string, parado
 {
     
 }
+#endif

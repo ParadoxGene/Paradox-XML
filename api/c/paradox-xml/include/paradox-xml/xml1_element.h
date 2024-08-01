@@ -1,7 +1,7 @@
 #ifndef PARADOX_SOFTWARE_C_HEADER_XML_ELEMENT
 #define PARADOX_SOFTWARE_C_HEADER_XML_ELEMENT
 
-#include <paradox-xml/attribute.h>
+#include <paradox-xml/xml1_attribute.h>
 
 typedef struct paradox_xml1_element
 {
