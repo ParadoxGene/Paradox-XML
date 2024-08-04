@@ -15,9 +15,40 @@ void paradox_xml1_parser_next_index(paradox_str_t xml_string, paradox_uint64_t* 
 // Document
 
 // [1] document ::= ( prolog element Misc* ) - ( Char* RestrictedChar Char* )
-PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_document(paradox_str_t xml_string, paradox_xml1_document* document)
+PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_document(paradox_str_t xml_string, paradox_xml1_document** document)
 {
-    return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string || NULL == document)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    *document = malloc(sizeof(document));
+
+    paradox_uint64_t index = 0;
+    if(PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_prolog(xml_string, &index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    if(PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_element(xml_string, &index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    while(PARADOX_XML1_PARSER_SUCCESS == paradox_parse_xml1_misc(xml_string, &index));
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(NULL != document && NULL != *document)
+        {
+            free(*document);
+            *document = NULL;
+        }
+    }
+    return result;
 }
 
 // Character Range
@@ -312,11 +343,100 @@ PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_nm_tokens(paradox
 // [9] EntityValue ::= '"' ([^%&"] | PEReference | Reference)* '"' | "'" ([^%&'] | PEReference | Reference)* "'"
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_entity_value(paradox_str_t xml_string, paradox_uint64_t* index)
 {
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    paradox_char8_t quote;
+    if('"' != xml_string[*index] || '\'' != xml_string[*index])
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    else
+    {
+        quote = xml_string[*index];
+        (*index)++;
+    }
+    while(1)
+    {
+        if(PARADOX_XML1_PARSER_SUCCESS == paradox_parse_xml1_pe_reference(xml_string, index)) continue;
+        if(PARADOX_XML1_PARSER_SUCCESS == paradox_parse_xml1_reference(xml_string, index)) continue;
+        if(PARADOX_FALSE == paradox_is_xml1_char(xml_string, *index)) break;
+        if('%' != xml_string[*index] && '&' != xml_string[*index] && quote != xml_string[*index]) paradox_xml1_parser_next_index(xml_string, index);
+        break;
+    }
+    if(quote != xml_string[*index])
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    else (*index)++;
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
     return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
 }
 // [10] AttValue ::= '"' ([^<&"] | Reference)* '"' | "'" ([^<&'] | Reference)* "'"
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_att_value(paradox_str_t xml_string, paradox_uint64_t* index)
 {
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    paradox_char8_t quote;
+    if('"' != xml_string[*index] || '\'' != xml_string[*index])
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    else
+    {
+        quote = xml_string[*index];
+        (*index)++;
+    }
+    while(1)
+    {
+        if(PARADOX_XML1_PARSER_SUCCESS == paradox_parse_xml1_reference(xml_string, index)) continue;
+        if(PARADOX_FALSE == paradox_is_xml1_char(xml_string, *index)) break;
+        if('%' != xml_string[*index] && '&' != xml_string[*index] && quote != xml_string[*index]) paradox_xml1_parser_next_index(xml_string, index);
+        break;
+    }
+    if(quote != xml_string[*index])
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    else (*index)++;
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
     return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
 }
 // [11] SystemLiteral ::= ('"' [^"]* '"') | ("'" [^']* "'")
@@ -940,12 +1060,81 @@ PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_contentspec(parad
 // [47] children ::= (choice | seq) ('?' | '*' | '+')?
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_children(paradox_str_t xml_string, paradox_uint64_t* index)
 {
-    return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    if( PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_choice(xml_string, index)
+    &&  PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_seq(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    switch(xml_string[*index])
+    {
+    case '?':
+    case '*':
+    case '+':
+        (*index)++;
+        break;
+    default: break;
+    }
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
 }
 // [48] cp ::= (Name | choice | seq) ('?' | '*' | '+')?
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_cp(paradox_str_t xml_string, paradox_uint64_t* index)
 {
-    return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    if( PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_name(xml_string, index)
+    &&  PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_choice(xml_string, index)
+    &&  PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_seq(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    switch(xml_string[*index])
+    {
+    case '?':
+    case '*':
+    case '+':
+        (*index)++;
+        break;
+    default: break;
+    }
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
 }
 // [49] choice ::= '(' S? cp ( S? '|' S? cp )+ S? ')' [VC: Proper Group/PE Nesting]
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_choice(paradox_str_t xml_string, paradox_uint64_t* index)
@@ -971,12 +1160,102 @@ PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_mixed(paradox_str
 // [52] AttlistDecl ::= '<!ATTLIST' S Name AttDef* S? '>'
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_attlist_decl(paradox_str_t xml_string, paradox_uint64_t* index)
 {
-    return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    if(strncmp(xml_string + *index, "<!ATTLIST", 9))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    } else (*index) += 9;
+    if(PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_space(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    if(PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_name(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    while(PARADOX_XML1_PARSER_SUCCESS == paradox_parse_xml1_att_def(xml_string, index));
+    paradox_parse_xml1_space(xml_string, index);
+    if('>' != xml_string[*index])
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    } else (*index)++;
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
 }
 // [53] AttDef ::= S Name S AttType S DefaultDecl
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_att_def(paradox_str_t xml_string, paradox_uint64_t* index)
 {
-    return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    if(PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_space(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    if(PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_name(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    if(PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_space(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    if(PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_att_type(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    if(PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_space(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    if(PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_default_decl(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
 }
 
 // Attribute Types
@@ -984,12 +1263,63 @@ PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_att_def(paradox_s
 // [54] AttType ::= StringType | TokenizedType | EnumeratedType
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_att_type(paradox_str_t xml_string, paradox_uint64_t* index)
 {
-    return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    if( PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_string_type(xml_string, index)
+    &&  PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_tokenized_type(xml_string, index)
+    &&  PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_enumerated_type(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
 }
 // [55] StringType ::= 'CDATA'
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_string_type(paradox_str_t xml_string, paradox_uint64_t* index)
 {
-    return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    if(strncmp(xml_string + *index, "CDATA", 5))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else (*index) += 5;
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
 }
 
 /** [56] TokenizedType ::= 'ID' [VC: ID][VC: One ID per Element Type][VC: ID Attribute Default]
@@ -1009,7 +1339,32 @@ PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_tokenized_type(pa
 // [57] EnumeratedType ::= NotationType | Enumeration
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_enumerated_type(paradox_str_t xml_string, paradox_uint64_t* index)
 {
-    return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    if( PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_notation_type(xml_string, index)
+    &&  PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_enumeration(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
 }
 // [58] NotationType ::= 'NOTATION' S '(' S? Name (S? '|' S? Name)* S? ')' [VC: Notation Attributes][VC: One Notation Per Element Type][VC: No Notation on Empty Element][VC: No Duplicate Tokens]
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_notation_type(paradox_str_t xml_string, paradox_uint64_t* index)
@@ -1035,7 +1390,32 @@ PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_default_decl(para
 // [61] conditionalSect ::= includeSect | ignoreSect
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_conditional_sect(paradox_str_t xml_string, paradox_uint64_t* index)
 {
-    return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    if( PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_include_sect(xml_string, index)
+    &&  PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_ignore_sect(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
 }
 // [62] includeSect ::= '<![' S? 'INCLUDE' S? '[' extSubsetDecl ']]>' [VC: Proper Conditional Section/PE Nesting]
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_include_sect(paradox_str_t xml_string, paradox_uint64_t* index)
@@ -1071,7 +1451,32 @@ PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_char_ref(paradox_
 // [67] Reference ::= EntityRef | CharRef
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_reference(paradox_str_t xml_string, paradox_uint64_t* index)
 {
-    return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    if( PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_entity_ref(xml_string, index)
+    &&  PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_char_ref(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
 }
 // [68] EntityRef ::= '&' Name ';' [WFC: Entity Declared][VC: Entity Declared][WFC: Parsed Entity][WFC: No Recursion]
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_entity_ref(paradox_str_t xml_string, paradox_uint64_t* index)
@@ -1089,7 +1494,32 @@ PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_pe_reference(para
 // [70] EntityDecl ::= GEDecl | PEDecl
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_entity_decl(paradox_str_t xml_string, paradox_uint64_t* index)
 {
-    return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    if( PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_ge_decl(xml_string, index)
+    &&  PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_pe_decl(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
 }
 // [71] GEDecl ::= '<!ENTITY' S Name S EntityDef S? '>'
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_ge_decl(paradox_str_t xml_string, paradox_uint64_t* index)
@@ -1109,7 +1539,32 @@ PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_entity_def(parado
 // [74] PEDef ::= EntityValue | ExternalID
 PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_pe_def(paradox_str_t xml_string, paradox_uint64_t* index)
 {
-    return PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+    paradox_xml1_parser_errno_t result;
+    if(NULL == xml_string)
+    {
+        result = PARADOX_XML1_PARSER_NULL_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    else if(NULL == index)
+    {
+        result = PARADOX_XML1_PARSER_NULL_INDEX;
+        goto INVALID_PARSING;
+    }
+    const paradox_uint64_t base_index = *index;
+
+    if( PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_entity_value(xml_string, index)
+    &&  PARADOX_XML1_PARSER_SUCCESS != paradox_parse_xml1_external_id(xml_string, index))
+    {
+        result = PARADOX_XML1_PARSER_INVALID_DOCUMENT;
+        goto INVALID_PARSING;
+    }
+    result = PARADOX_XML1_PARSER_SUCCESS;
+
+    INVALID_PARSING:
+    if(result != PARADOX_XML1_PARSER_SUCCESS)
+    {
+        if(PARADOX_XML1_PARSER_NULL_INDEX != result) *index = base_index;
+    }
 }
 
 // External Entity Declaration

@@ -13,7 +13,7 @@ typedef enum paradox_xml1_parser_errno_t {
 // Document
 
 // [1] document ::= ( prolog element Misc* ) - ( Char* RestrictedChar Char* )
-PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_document(paradox_str_t xml_string, paradox_xml1_document* document);
+PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_document(paradox_str_t xml_string, paradox_xml1_document** document);
 
 // Character Range
 
