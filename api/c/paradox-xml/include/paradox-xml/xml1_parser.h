@@ -17,7 +17,7 @@ PARADOX_XML_API paradox_xml1_parser_errno_t paradox_parse_xml1_document(paradox_
 
 // Character Range
 
-// [2] Char ::= [#x1-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]
+// [2] Char ::= ([#x1-#xD7FF] | [#xE000-#xFFFD] | [#x10000-#x10FFFF]) - RestrictedChar
 PARADOX_XML_API paradox_bool8_t paradox_is_xml1_char(paradox_str_t xml_string, const paradox_uint64_t index);
 // [2a] RestrictedChar ::= [#x1-#x8] | [#xB-#xC] | [#xE-#x1F] | [#x7F-#x84] | [#x86-#x9F]
 PARADOX_XML_API paradox_bool8_t paradox_is_xml1_restricted_char(paradox_str_t xml_string, const paradox_uint64_t index);
